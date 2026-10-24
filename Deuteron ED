@@ -1,0 +1,172 @@
+"""Exact diagonalization of the two-site lattice pionless EFT deuteron Hamiltonian
+and determination of the contact coupling C.
+
+The Hamiltonian is the one used in
+
+  P. Cifci, S. Akkoyun, L. La Ronde, Eur. Phys. J. A 62, 199 (2026)
+
+and in the CSJ optimizer benchmark (csj_vqe.py):
+
+  H = -t sum_<i,j>,sigma (a^dag_{i sigma} a_{j sigma} + h.c.)
+      + (C/2) sum_i sum_{sigma != sigma', proton-neutron pairs} n_{i sigma} n_{i sigma'}
+
+with t = (hbar c)^2 / (2 M_N a^2). Each proton-neutron pair on a site has coupling C.
+
+Mode ordering (site-major): mode k = 4*site + s, with s = 0, 1, 2, 3 for
+p-up, p-down, n-up, n-down.
+
+C is fixed by requiring that the lowest eigenvalue in the (1p,1n) sector equals
+the deuteron energy, -2.224566 MeV (AME2020), using Brent's root-finding method.
+
+Usage:  python deuteron_ed_fit.py
+"""
+import itertools
+
+import numpy as np
+from scipy.linalg import eigh
+from scipy.optimize import brentq
+
+TARGET_ENERGY = -2.224566   # MeV, deuteron energy (AME2020)
+C_ROUNDED = -0.344568       # MeV, value of C used in csj_vqe.py (six decimals)
+
+
+class DeuteronSystem:
+
+    def __init__(self):
+        self.hbar_c = 197.3   # MeV fm
+        self.M_N = 940.0      # MeV
+        self.a = 4.5          # fm, lattice spacing
+        self.t = self.hbar_c ** 2 / (2.0 * self.M_N * self.a ** 2)   # hopping amplitude
+
+        self.n_sites = 2
+        self.n_particles = 2
+        self.n_modes = 8
+        self.proton_modes = [0, 1, 4, 5]
+        self.neutron_modes = [2, 3, 6, 7]
+
+        self.physical_states = self._generate_physical_states()
+        self.n_states = len(self.physical_states)
+
+    def _generate_physical_states(self):
+        """All occupation-number states with one proton and one neutron (16 states)."""
+        states = []
+        for config in itertools.combinations(range(self.n_modes), self.n_particles):
+            n_p = sum(1 for mode in config if mode in self.proton_modes)
+            n_n = sum(1 for mode in config if mode in self.neutron_modes)
+            if n_p == 1 and n_n == 1:
+                state = np.zeros(self.n_modes, dtype=int)
+                for mode in config:
+                    state[mode] = 1
+                states.append(state)
+        return states
+
+    @staticmethod
+    def _site(mode):
+        return mode // 4
+
+    @staticmethod
+    def _spin_isospin(mode):
+        return [('up', 'proton'), ('down', 'proton'),
+                ('up', 'neutron'), ('down', 'neutron')][mode % 4]
+
+    @staticmethod
+    def _are_neighbors(site1, site2):
+        return abs(site1 - site2) == 1
+
+    @staticmethod
+    def _fermionic_sign(state, mode1, mode2):
+        """Apply a^dag_{mode1} a_{mode2} to an occupation-number state.
+        Returns (sign, new_state), or (0, None) if the result vanishes."""
+        if state[mode2] == 0 or state[mode1] == 1:
+            return 0, None
+        sign2 = (-1) ** sum(state[:mode2])
+        new_state = state.copy()
+        new_state[mode2] = 0
+        sign1 = (-1) ** sum(new_state[:mode1])
+        new_state[mode1] = 1
+        return sign1 * sign2, new_state
+
+    def _build_kinetic_matrix(self):
+        """Nearest-neighbour hopping that conserves spin and isospin."""
+        K = np.zeros((self.n_states, self.n_states))
+        for i, state_i in enumerate(self.physical_states):
+            for j, state_j in enumerate(self.physical_states):
+                element = 0.0
+                for mode1 in range(self.n_modes):
+                    for mode2 in range(self.n_modes):
+                        if mode1 == mode2:
+                            continue
+                        if not self._are_neighbors(self._site(mode1), self._site(mode2)):
+                            continue
+                        if self._spin_isospin(mode1) != self._spin_isospin(mode2):
+                            continue
+                        sign, final_state = self._fermionic_sign(state_j, mode1, mode2)
+                        if sign != 0 and np.array_equal(final_state, state_i):
+                            element += sign
+                K[i, j] = element
+        return -self.t * K
+
+    def _build_interaction_matrix(self, C):
+        """On-site contact term: coupling C for each proton-neutron pair on a site."""
+        V = np.zeros((self.n_states, self.n_states))
+        for i, state in enumerate(self.physical_states):
+            energy = 0.0
+            for site in range(self.n_sites):
+                protons = sum(state[site * 4 + s] for s in (0, 1))
+                neutrons = sum(state[site * 4 + s] for s in (2, 3))
+                energy += protons * neutrons
+            V[i, i] = energy
+        return C * V
+
+    def build_hamiltonian(self, C):
+        return self._build_kinetic_matrix() + self._build_interaction_matrix(C)
+
+    def diagonalize(self, C):
+        eigenvalues, eigenvectors = eigh(self.build_hamiltonian(C))
+        return eigenvalues[0], eigenvalues, eigenvectors
+
+    def fit_C(self, target_energy=TARGET_ENERGY, bracket=(-5.0, 0.0), xtol=1e-12):
+        """Find C such that the ground-state energy equals target_energy (Brent's method)."""
+        f = lambda C: self.diagonalize(C)[0] - target_energy
+        best_C = brentq(f, bracket[0], bracket[1], xtol=xtol)
+        best_energy = self.diagonalize(best_C)[0]
+        print(f"\nFit of C (Brent's method, xtol = {xtol}, bracket = {bracket} MeV)")
+        print("=" * 60)
+        print(f"Best-fit C:          {best_C:.8f} MeV")
+        print(f"Ground-state energy: {best_energy:.8f} MeV")
+        print(f"Target energy:       {target_energy:.8f} MeV")
+        print(f"Residual:            {best_energy - target_energy:+.2e} MeV")
+        return best_C, best_energy
+
+    def analyze_ground_state(self, C):
+        ground_energy, eigenvalues, eigenvectors = self.diagonalize(C)
+        psi = eigenvectors[:, 0]
+        print(f"\nGround state for C = {C:.6f} MeV")
+        print("=" * 60)
+        print(f"Ground-state energy (E_ED): {ground_energy:.10f} MeV")
+        print(f"Lowest five eigenvalues:    {np.round(eigenvalues[:5], 6)}")
+        print("Components with |amplitude| > 0.1:")
+        for i, amplitude in enumerate(psi):
+            if abs(amplitude) > 0.1:
+                labels = []
+                for mode in np.nonzero(self.physical_states[i])[0]:
+                    spin, isospin = self._spin_isospin(mode)
+                    labels.append(f"site{self._site(mode)}:{isospin[0]}{'↑' if spin == 'up' else '↓'}")
+                print(f"  {amplitude:+.3f} |{', '.join(labels)}>")
+
+
+def main():
+    print("Deuteron, two-site lattice pionless EFT: exact diagonalization")
+    print("=" * 60)
+    d = DeuteronSystem()
+    print(f"Hopping amplitude t = {d.t:.8f} MeV")
+    print(f"Dimension of the (1p,1n) sector: {d.n_states}")
+
+    d.fit_C()
+    # The VQE code uses C rounded to six decimals; E_ED below is the reference energy
+    # quoted in the CSJ manuscript.
+    d.analyze_ground_state(C_ROUNDED)
+
+
+if __name__ == "__main__":
+    main()
