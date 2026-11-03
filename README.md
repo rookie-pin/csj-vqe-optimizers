@@ -19,6 +19,7 @@ The results in the paper were obtained with NumPy 2.2.1, SciPy 1.15.1, Qiskit 1.
 ## Running
 
 ```
+Unzip csj_out_numpy/hist.zip so that the .npy files are in csj_out_numpy/hist/.
 python deuteron_ed.py        # fits C to the deuteron binding energy
 python csj_vqe.py            # all optimization runs and the tables
 python csj_figs.py           # Figs. 2-4
