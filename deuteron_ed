@@ -5,7 +5,7 @@ The Hamiltonian is the one used in
 
   P. Cifci, S. Akkoyun, L. La Ronde, Eur. Phys. J. A 62, 199 (2026)
 
-and in the CSJ optimizer benchmark (csj_vqe.py):
+and in the CSJ optimizer benchmark (csj_vqe.ipynb):
 
   H = -t sum_<i,j>,sigma (a^dag_{i sigma} a_{j sigma} + h.c.)
       + (C/2) sum_i sum_{sigma != sigma', proton-neutron pairs} n_{i sigma} n_{i sigma'}
