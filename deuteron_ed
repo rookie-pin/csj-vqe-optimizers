@@ -18,7 +18,7 @@ p-up, p-down, n-up, n-down.
 C is fixed by requiring that the lowest eigenvalue in the (1p,1n) sector equals
 the deuteron energy, -2.224566 MeV (AME2020), using Brent's root-finding method.
 
-Usage:  python deuteron_ed_fit.py
+
 """
 import itertools
 
