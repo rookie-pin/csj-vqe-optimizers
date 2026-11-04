@@ -18,18 +18,21 @@ The results in the paper were obtained with NumPy 2.2.1, SciPy 1.15.1, Qiskit 1.
 
 ## Running
 
-```
-Unzip csj_out_numpy/hist.zip so that the .npy files are in csj_out_numpy/hist/.
-python deuteron_ed.py        # fits C to the deuteron binding energy
-python csj_vqe.py            # all optimization runs and the tables
-python csj_figs.py           # Figs. 2-4
-```
+## Running
 
-`deuteron_ed.py` gives C = -0.344568 MeV, which `csj_vqe.py` uses as a fixed constant.
+The analysis code is provided as Jupyter Notebooks.
 
-`csj_vqe.py --appendix` prints Appendix B from the saved runs without running anything. `--workers 4` runs in parallel from a terminal. Runs already in `runs.jsonl` are skipped, so an interrupted calculation can be continued. In Jupyter or Spyder the script only prints Appendix B unless `NOTEBOOK_ARGS` at the end of the file is set to `[]`.
+1. Install the required packages using `pip install -r requirements.txt`.
 
-All runs are deterministic for a given seed. The initial parameters come from `numpy.random.RandomState(seed)`, and the SPSA directions from `RandomState(seed + 10000)`.
+2. Extract `csj_out_numpy/hist.zip` into `csj_out_numpy/hist/`.
+
+3. Run `python deuteron_ed.py` to reproduce the fitted contact coupling C = −0.344568 MeV.
+
+4. Open `csj_vqe.ipynb` in Jupyter Notebook and select **Run All**. By default, the notebook reads the saved results and generates the Appendix B tables. To rerun the optimizations, change `NOTEBOOK_ARGS = ['--appendix']` to `NOTEBOOK_ARGS = []`.
+
+5. Open `csj_figs.ipynb` in Jupyter Notebook and select **Run All** to reproduce Figures 2–4 from the saved results.
+
+All 680 optimization results are provided in `csj_out_numpy/`. The initial parameters are generated using `RandomState(seed)`, while SPSA uses `RandomState(seed + 10000)` for its random directions.
 
 ## Output
 
@@ -46,7 +49,7 @@ Everything is written to `csj_out_numpy/`:
 | `environment.txt` | software versions and hardware |
 | `figs/` | Figs. 2-4 as PNG and PDF |
 
-Tables 3 and 4 are printed by `csj_vqe.py` and not saved to separate files.
+Tables 3 and 4 are printed by `csj_vqe.ipynb` and not saved to separate files.
 
 Initialization ranges: `narrow` [0.1, 0.5], `near0` [-0.1, 0.1], `pm_pi` [-π, π], `zero_2pi` [0, 2π] rad. `protocol` is `free` for the deterministic optimizers and `fixed` for SPSA. `depth` is the number of ansatz layers.
 
