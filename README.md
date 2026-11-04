@@ -18,8 +18,6 @@ The results in the paper were obtained with NumPy 2.2.1, SciPy 1.15.1, Qiskit 1.
 
 ## Running
 
-## Running
-
 The analysis code is provided as Jupyter Notebooks.
 
 1. Install the required packages using `pip install -r requirements.txt`.
